@@ -94,14 +94,14 @@ npm run build
 
 ## Preparación del VPS
 
-El servidor debe tener:
+Modo actual (sin dominio todavía, servidor compartido): `deploy.sh` usa `docker compose` con
+las imágenes ya publicadas en GHCR (`docker-compose.prod.yml`), expuestas directamente en
+`FRONTEND_PORT`/`BACKEND_PORT`. No requiere Docker Swarm ni Traefik, así que no interfiere con
+otros proyectos que corran en el mismo VPS.
 
-- Docker instalado.
-- Docker Swarm iniciado: `docker swarm init`.
-- Traefik desplegado.
-- Red overlay externa `traefik-public`.
-- Puertos 80 y 443 permitidos en el firewall.
-- El dominio apuntando a la IP pública del VPS.
+El servidor solo necesita:
+
+- Docker y Docker Compose instalados.
 
 Clona el repositorio:
 
@@ -116,6 +116,10 @@ chmod +x deploy.sh
 ./deploy.sh
 ```
 
+Cuando el ingeniero asigne el dominio, se puede migrar al modo con Docker Swarm + Traefik +
+HTTPS automático usando `deploy-swarm.sh` y `stack.yml` (requiere `docker swarm init`, Traefik
+desplegado y una red overlay externa `traefik-public`; ver comentarios en esos archivos).
+
 ## Variables para producción
 
 ```env
@@ -123,10 +127,10 @@ POSTGRES_DB=novabyte
 POSTGRES_USER=novabyte
 POSTGRES_PASSWORD=una-clave-larga
 ADMIN_API_KEY=otra-clave-larga
-DOMAIN=tienda.dominio.com
-LETSENCRYPT_RESOLVER=letsencrypt
 GHCR_OWNER=tu_usuario_github
 IMAGE_TAG=latest
+FRONTEND_PORT=8081
+BACKEND_PORT=8000
 ```
 
 ## Secrets de GitHub Actions

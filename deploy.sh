@@ -10,7 +10,7 @@ if [[ -f .env ]]; then
   set +a
 fi
 
-required=(POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY DOMAIN GHCR_OWNER)
+required=(POSTGRES_DB POSTGRES_USER POSTGRES_PASSWORD ADMIN_API_KEY GHCR_OWNER)
 for variable in "${required[@]}"; do
   if [[ -z "${!variable:-}" ]]; then
     echo "Falta la variable obligatoria: $variable" >&2
@@ -19,19 +19,14 @@ for variable in "${required[@]}"; do
 done
 
 export IMAGE_TAG="${IMAGE_TAG:-latest}"
-export LETSENCRYPT_RESOLVER="${LETSENCRYPT_RESOLVER:-letsencrypt}"
-
-if ! docker network inspect traefik-public >/dev/null 2>&1; then
-  echo "No existe la red externa traefik-public. Créala o despliega Traefik primero." >&2
-  exit 1
-fi
+export FRONTEND_PORT="${FRONTEND_PORT:-8081}"
+export BACKEND_PORT="${BACKEND_PORT:-8000}"
 
 if [[ -n "${GHCR_TOKEN:-}" ]]; then
   echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
 fi
 
-docker pull "ghcr.io/${GHCR_OWNER}/novabyte-backend:${IMAGE_TAG}"
-docker pull "ghcr.io/${GHCR_OWNER}/novabyte-frontend:${IMAGE_TAG}"
-docker stack deploy -c stack.yml novabyte --with-registry-auth
+docker compose -f docker-compose.prod.yml pull
+docker compose -f docker-compose.prod.yml up -d
 
-echo "NovaByte desplegado. Revisa: https://${DOMAIN}"
+echo "NovaByte desplegado. Frontend: http://<IP-DEL-VPS>:${FRONTEND_PORT}  API: http://<IP-DEL-VPS>:${BACKEND_PORT}/api"
