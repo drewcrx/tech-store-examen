@@ -1,0 +1,85 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - novabyte_postgres_data:/var/lib/postgresql/data
+    networks:
+      - novabyte-internal
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      placement:
+        constraints:
+          - node.role == manager
+
+  backend:
+    image: ghcr.io/${GHCR_OWNER}/novabyte-backend:${IMAGE_TAG:-latest}
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      ADMIN_API_KEY: ${ADMIN_API_KEY}
+      CORS_ORIGINS: https://${DOMAIN}
+      ENVIRONMENT: production
+    networks:
+      - novabyte-internal
+      - traefik-public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.novabyte-api.rule=Host(`${DOMAIN}`) && PathPrefix(`/api`)"
+        - "traefik.http.routers.novabyte-api.entrypoints=websecure"
+        - "traefik.http.routers.novabyte-api.tls=true"
+        - "traefik.http.routers.novabyte-api.tls.certresolver=${LETSENCRYPT_RESOLVER}"
+        - "traefik.http.routers.novabyte-api.priority=100"
+        - "traefik.http.services.novabyte-api.loadbalancer.server.port=8000"
+
+  frontend:
+    image: ghcr.io/${GHCR_OWNER}/novabyte-frontend:${IMAGE_TAG:-latest}
+    networks:
+      - novabyte-internal
+      - traefik-public
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 1
+        delay: 10s
+        order: start-first
+      labels:
+        - "traefik.enable=true"
+        - "traefik.docker.network=traefik-public"
+        - "traefik.http.routers.novabyte-http.rule=Host(`${DOMAIN}`)"
+        - "traefik.http.routers.novabyte-http.entrypoints=web"
+        - "traefik.http.routers.novabyte-http.middlewares=novabyte-https-redirect"
+        - "traefik.http.middlewares.novabyte-https-redirect.redirectscheme.scheme=https"
+        - "traefik.http.routers.novabyte-web.rule=Host(`${DOMAIN}`)"
+        - "traefik.http.routers.novabyte-web.entrypoints=websecure"
+        - "traefik.http.routers.novabyte-web.tls=true"
+        - "traefik.http.routers.novabyte-web.tls.certresolver=${LETSENCRYPT_RESOLVER}"
+        - "traefik.http.routers.novabyte-web.priority=1"
+        - "traefik.http.services.novabyte-web.loadbalancer.server.port=80"
+
+volumes:
+  novabyte_postgres_data:
+
+networks:
+  novabyte-internal:
+    driver: overlay
+  traefik-public:
+    external: true

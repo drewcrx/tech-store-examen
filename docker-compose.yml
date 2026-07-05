@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: novabyte-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-novabyte}
+      POSTGRES_USER: ${POSTGRES_USER:-novabyte}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-novabyte_dev_password}
+    volumes:
+      - novabyte_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-novabyte} -d ${POSTGRES_DB:-novabyte}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - novabyte-network
+
+  backend:
+    build:
+      context: ./backend
+    container_name: novabyte-backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgresql+psycopg://novabyte:novabyte_dev_password@db:5432/novabyte}
+      ADMIN_API_KEY: ${ADMIN_API_KEY:-dev-admin-key}
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+    networks:
+      - novabyte-network
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: novabyte-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    networks:
+      - novabyte-network
+
+volumes:
+  novabyte_postgres_data:
+
+networks:
+  novabyte-network:
+    driver: bridge
